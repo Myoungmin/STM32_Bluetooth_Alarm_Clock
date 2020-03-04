@@ -59,9 +59,27 @@ static void MX_RTC_Init(void);
 static void MX_TIM2_Init(void);
 /* USER CODE BEGIN PFP */
 volatile int second, minute, hour;
+volatile int AL_second, AL_minute, AL_hour;
 volatile int timer_count;
 volatile int meridiem;	//AM, PM 구분하는 변수
+volatile int AL_meridiem;
 char uart_buf[40];
+
+char rcv_byte;
+uint32_t last_time,current_time,time_interval;
+volatile int long_key;
+
+enum CLOCK_MODE{
+   NORMAL_STATE,
+   TIME_SETTING,
+   ALARM_TIME_SETTING,
+   MUSIC_SELECT
+};
+
+enum CLOCK_MODE clock_mode;
+
+
+void time_display(void);
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
@@ -73,12 +91,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 			minute = (timer_count % 360000) / 6000;	//분
 			second = ((timer_count % 360000) % 6000) / 100;	//초
 
-			memset(uart_buf, 0, 40);	//문자열 0으로 초기화
-			//AM일때 출력
-			if(meridiem == 0) sprintf(uart_buf, "Korea Polytech  \r\nAM %02d:%02d:%02d   \r\n",hour, minute, second);
-			//PM일때 출력
-			else sprintf(uart_buf, "Korea Polytech  \r\nPM %02d:%02d:%02d   \r\n",hour, minute, second);
-			HAL_UART_Transmit_IT(&huart3, uart_buf, sizeof(uart_buf));
+			time_display();	//시간 출력 함수
 		}
 		timer_count++;
 
@@ -88,6 +101,72 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 			meridiem = !meridiem;	//AM, PM toggle
 		}
 	}
+}
+
+void time_display(void)
+{
+	memset(uart_buf, 0, 40);	//문자열 0으로 초기화
+
+	if(clock_mode == NORMAL_STATE)
+	{
+		//AM일때 출력
+		if(meridiem == 0) sprintf(uart_buf, "Korea Polytech  \r\nAM %02d:%02d:%02d   \r\n",hour, minute, second);
+		//PM일때 출력
+		else sprintf(uart_buf, "Korea Polytech  \r\nPM %02d:%02d:%02d   \r\n",hour, minute, second);
+	}
+	else if(clock_mode == TIME_SETTING)
+	{
+		//깜빡임 표시
+		if(second % 2 == 0) sprintf(uart_buf, "Korea Polytech  \r\n   %02d:%02d:%02d   \r\n",hour, minute, second);
+		else
+		{
+			//AM일때 출력
+			if(meridiem == 0) sprintf(uart_buf, "Korea Polytech  \r\nAM %02d:%02d:%02d   \r\n",hour, minute, second);
+			//PM일때 출력
+			else sprintf(uart_buf, "Korea Polytech  \r\nPM %02d:%02d:%02d   \r\n",hour, minute, second);
+		}
+	}
+	else if(clock_mode == ALARM_TIME_SETTING)
+	{
+		//깜빡임 표시
+		if(second % 2 == 0) sprintf(uart_buf, "Korea Polytech  \r\n   %02d:%02d:%02d AL\r\n",AL_hour, AL_minute, AL_second);
+		else
+		{
+			//AM일때 출력
+			if(AL_meridiem == 0) sprintf(uart_buf, "Korea Polytech  \r\nAM %02d:%02d:%02d AL\r\n",AL_hour, AL_minute, AL_second);
+			//PM일때 출력
+			else sprintf(uart_buf, "Korea Polytech  \r\nPM %02d:%02d:%02d AL\r\n",AL_hour, AL_minute, AL_second);
+		}
+	}
+	else if(clock_mode == MUSIC_SELECT)
+	{
+		sprintf(uart_buf, "Three Bears     \r\nSpring Water    \r\n");
+	}
+	HAL_UART_Transmit_IT(&huart3, uart_buf, sizeof(uart_buf));	//화면 출력
+}
+
+/* Arrow Keys mapping
+ * UP = 'A' = 65
+ * DOWN = 'B' = 66
+ * RIGHT = 'C' = 67
+ * LEFT = 'D' = 68
+ * ENTER = 13
+ */
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+  if (huart->Instance == USART3)
+  {
+	/* Transmit one byte with 100 ms timeout */
+	//HAL_UART_Transmit(&huart3, &rcv_byte, 1, 100);
+
+	current_time = HAL_GetTick();
+    time_interval = current_time - last_time;
+    last_time = current_time;
+
+	/* Receive one byte in interrupt mode */
+	HAL_UART_Receive_IT(&huart3, &rcv_byte, 1);	//수신 인터럽트 진행 후 다시 이렇게 설정 해줘야 다시 수신 인터럽트 가능??
+  }
 }
 /* USER CODE END PFP */
 
@@ -130,6 +209,8 @@ int main(void)
   /* USER CODE BEGIN 2 */
   HAL_TIM_Base_Init(&htim2);
   HAL_TIM_Base_Start_IT(&htim2);
+
+  HAL_UART_Receive_IT(&huart3,&rcv_byte,1);	//UART 수신 인터럽트 초기설정 이거 없으면 인터럽트 시작 안함
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -137,7 +218,37 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
+	if(time_interval)
+	{
+		if(rcv_byte == 13 && time_interval >=20 && time_interval <= 50)	//길게누르면 카운트 올라감
+		{
+			long_key++;
+		}
 
+		if(rcv_byte == 13 && time_interval >=100 && time_interval <= 200)	//더블 클릭일때 모드 변경
+		{
+			if(clock_mode == TIME_SETTING) clock_mode = MUSIC_SELECT;
+		}
+
+		else if(rcv_byte == 13 && long_key == 30)	//길게 3초 누르면 모드 변경
+		{
+			long_key = 0;
+			if(clock_mode == TIME_SETTING) clock_mode = ALARM_TIME_SETTING;
+		}
+
+		else if(rcv_byte == 13 && time_interval > 1000)	//모드변경 버튼 누른 후 1초이상 지나야 적용 (앞에 모드변경들에 영향 없기 위해)
+		{
+			if(clock_mode == NORMAL_STATE) clock_mode = TIME_SETTING;
+			else clock_mode = NORMAL_STATE;
+		}
+
+		//클락 모드 확인용 UART 송신
+		memset(uart_buf,0,sizeof(uart_buf));
+		sprintf(uart_buf,"%d\r\n",clock_mode);
+		HAL_UART_Transmit_IT(&huart3,uart_buf,sizeof(uart_buf));
+		//타임 인터벌 초기화
+		time_interval = 0;
+	}
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
