@@ -110,9 +110,22 @@ void time_display(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+#define START_ADDR (0x08100000)
+uint32_t * flash_addr,i,error_page,prog_addr;
+
+
+
 volatile int second, minute, hour;
 volatile int AL_second, AL_minute, AL_hour;
 volatile int timer_count;
+uint32_t selected_music;
+
+uint32_t Address = 0, SECTORError = 0;
+__IO uint32_t data32 = 0 , MemoryProgramStatus = 0;
+
+static FLASH_EraseInitTypeDef EraseInitStruct;
+
+
 char line[2][18], time_str[16];
 uint8_t key_value;
 char uart_buf[40];
@@ -490,6 +503,31 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
     	  	  case SEL_KEY:
     	  		  if(time_interval>= NORMAL_CLICK_MIN)
     	  		  {
+    	  			  //플래시 메로리 저장
+    	  			  //시간설정하고 플래시 메모리 저장하면 메모리 지우는 시간때문에 모드변경에 어려움
+    	  			  /*
+    	  			  HAL_FLASH_Unlock();
+    	  			  EraseInitStruct.TypeErase     = FLASH_TYPEERASE_SECTORS;
+    	  			  EraseInitStruct.VoltageRange  = FLASH_VOLTAGE_RANGE_3;
+    	  			  EraseInitStruct.Sector        = FLASH_SECTOR_12;
+    	  			  EraseInitStruct.NbSectors     = FLASH_SECTOR_12;
+    	  			  if(HAL_FLASHEx_Erase(&EraseInitStruct, &SECTORError) != HAL_OK)
+    	  			  {
+    	  				memset(uart_buf,0,sizeof(uart_buf));
+    	  				sprintf(uart_buf,"HAL_FLASHEx_Erase ERROR\r\n");
+    	  				HAL_UART_Transmit_IT(&huart3,uart_buf,sizeof(uart_buf));
+    	  				return -1;
+    	  			  }
+    	  			  Address = (0x08100000);
+    	  			  HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, Address, second);
+    	  			  HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, Address + 4, minute);
+    	  			  HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, Address + 8, hour);
+    	  			  HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, Address + 12, AL_second);
+    	  			  HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, Address + 16, AL_minute);
+    	  			  HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, Address + 20, AL_hour);
+    	  			  HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, Address + 24, selected_music);
+    	  			  HAL_FLASH_Lock();
+    	  			  */
     	  			  setting = AP;
     	  			  current_state.mode = NORMAL_STATE;
     	  		  }
@@ -562,6 +600,29 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
     	  	  case SEL_KEY:
     	  		  if(time_interval>= NORMAL_CLICK_MIN)
     	  		  {
+    	  			  //플래시 메로리 저장
+    	  			  HAL_FLASH_Unlock();
+    	  			  EraseInitStruct.TypeErase     = FLASH_TYPEERASE_SECTORS;
+    	  			  EraseInitStruct.VoltageRange  = FLASH_VOLTAGE_RANGE_3;
+    	  			  EraseInitStruct.Sector        = FLASH_SECTOR_12;
+    	  			  EraseInitStruct.NbSectors     = FLASH_SECTOR_12;
+    	  			  if(HAL_FLASHEx_Erase(&EraseInitStruct, &SECTORError) != HAL_OK)
+    	  			  {
+    	  				memset(uart_buf,0,sizeof(uart_buf));
+    	  				sprintf(uart_buf,"HAL_FLASHEx_Erase ERROR\r\n");
+    	  				HAL_UART_Transmit_IT(&huart3,uart_buf,sizeof(uart_buf));
+    	  				return -1;
+    	  			  }
+    	  			  Address = (0x08100000);
+    	  			  HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, Address, second);
+    	  			  HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, Address + 4, minute);
+    	  			  HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, Address + 8, hour);
+    	  			  HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, Address + 12, AL_second);
+    	  			  HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, Address + 16, AL_minute);
+    	  			  HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, Address + 20, AL_hour);
+    	  			  HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, Address + 24, selected_music);
+    	  			  HAL_FLASH_Lock();
+    	  			  //
     	  			  setting = AP;
     	  			  current_state.mode = NORMAL_STATE;
     	  		  }
@@ -628,14 +689,39 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
     	  switch(key_value)
     	  {
 	  	  	  case SEL_KEY:
+	  	  		  //플래시 메로리 저장
+	  			  HAL_FLASH_Unlock();
+	  			  EraseInitStruct.TypeErase     = FLASH_TYPEERASE_SECTORS;
+	  			  EraseInitStruct.VoltageRange  = FLASH_VOLTAGE_RANGE_3;
+	  			  EraseInitStruct.Sector        = FLASH_SECTOR_12;
+	  			  EraseInitStruct.NbSectors     = FLASH_SECTOR_12;
+	  			  if(HAL_FLASHEx_Erase(&EraseInitStruct, &SECTORError) != HAL_OK)
+	  			  {
+	  				memset(uart_buf,0,sizeof(uart_buf));
+	  				sprintf(uart_buf,"HAL_FLASHEx_Erase ERROR\r\n");
+	  				HAL_UART_Transmit_IT(&huart3,uart_buf,sizeof(uart_buf));
+	  				return -1;
+	  			  }
+	  			  Address = (0x08100000);
+	  			  HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, Address, second);
+	  			  HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, Address + 4, minute);
+	  			  HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, Address + 8, hour);
+	  			  HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, Address + 12, AL_second);
+	  			  HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, Address + 16, AL_minute);
+	  			  HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, Address + 20, AL_hour);
+	  			  HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, Address + 24, selected_music);
+	  			  HAL_FLASH_Lock();
+	  			  //
 	  	  		  if(time_interval>= NORMAL_CLICK_MIN) current_state.mode = NORMAL_STATE;
 	  	  		  break;
 	  	  	  case UP_KEY:
+	  	  		  selected_music = 0;	//Three Bears
 	  	  		  memset(uart_buf,0,sizeof(uart_buf));
 	  	  		  sprintf(uart_buf,"Three Bears selected\r\n");
 	  	  		  HAL_UART_Transmit_IT(&huart3,uart_buf,sizeof(uart_buf));
 	  	  		  break;
 	  	  	  case DOWN_KEY:
+	  	  		  selected_music = 1;	//Spring Water
 	  	  		  memset(uart_buf,0,sizeof(uart_buf));
 	  	  		  sprintf(uart_buf,"Spring Water selected\r\n");
 	  	  		  HAL_UART_Transmit_IT(&huart3,uart_buf,sizeof(uart_buf));
@@ -721,6 +807,16 @@ int main(void)
   
   current_state.mode = NORMAL_STATE;
   current_state.button = NO_KEY;
+
+  flash_addr = (uint32_t *)START_ADDR;
+
+  second = *(flash_addr);
+  minute = *(flash_addr + 1);
+  hour = *(flash_addr + 2);
+  AL_second = *(flash_addr + 3);
+  AL_minute = *(flash_addr + 4);
+  AL_hour = *(flash_addr + 5);
+  selected_music = *(flash_addr + 6);
   /* USER CODE END 2 */
 
   /* Infinite loop */
